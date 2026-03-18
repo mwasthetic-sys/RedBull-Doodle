@@ -1,0 +1,7 @@
+{
+  "name": "Remix: RedBull Doodle",
+  "description": "High-octane image transformation tool that stylizes your photos with energetic vector doodles and bold ink outlines.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
