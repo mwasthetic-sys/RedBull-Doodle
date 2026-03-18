@@ -9,6 +9,7 @@ interface GalleryItemProps {
 const GalleryItem: React.FC<GalleryItemProps> = ({ image }) => {
   const isCompleted = image.status === 'completed';
   const isProcessing = image.status === 'processing';
+  const isPending = image.status === 'pending';
   const isError = image.status === 'error';
 
   return (
@@ -18,7 +19,7 @@ const GalleryItem: React.FC<GalleryItemProps> = ({ image }) => {
           <img 
             src={isCompleted ? image.processedUrl : image.originalUrl} 
             alt={image.name}
-            className={`w-full h-full object-cover transition-all duration-700 ${isProcessing ? 'scale-110 blur-sm opacity-50' : 'scale-100 opacity-100 group-hover:scale-110'}`}
+            className={`w-full h-full object-cover transition-all duration-700 ${isProcessing ? 'scale-110 blur-sm opacity-50' : isPending ? 'opacity-30 grayscale' : 'scale-100 opacity-100 group-hover:scale-110'}`}
           />
           
           {/* Action Overlay */}
@@ -56,6 +57,14 @@ const GalleryItem: React.FC<GalleryItemProps> = ({ image }) => {
             </div>
           )}
 
+          {/* Pending Indicator */}
+          {isPending && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
+              <i className="fas fa-clock text-white/20 text-3xl mb-2"></i>
+              <span className="font-oswald font-bold text-white/40 uppercase tracking-widest text-[10px]">Queued</span>
+            </div>
+          )}
+
           {isError && (
             <div className="absolute inset-0 bg-red-900/80 flex flex-col items-center justify-center p-6 text-center">
               <i className="fas fa-bolt-slash text-white text-4xl mb-4"></i>
@@ -70,6 +79,7 @@ const GalleryItem: React.FC<GalleryItemProps> = ({ image }) => {
             <span className={`text-[9px] px-2 py-0.5 font-bold uppercase ${
               isCompleted ? 'bg-green-500 text-black' : 
               isProcessing ? 'bg-[#FFCC00] text-black animate-pulse' : 
+              isPending ? 'bg-white/10 text-white/30' :
               isError ? 'bg-[#E1002F] text-white' : 'bg-white/10 text-white/50'
             }`}>
               {image.status}

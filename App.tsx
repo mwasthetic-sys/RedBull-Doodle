@@ -133,40 +133,66 @@ const App: React.FC = () => {
     setIsProcessing(true);
     setProgress({ current: 0, total: idleImages.length });
 
-    for (const image of idleImages) {
-      setImages(prev => prev.map(img => 
-        img.id === image.id ? { ...img, status: 'processing' } : img
-      ));
+    // Set all to pending initially
+    setImages(prev => prev.map(img => 
+      idleImages.some(idle => idle.id === img.id) ? { ...img, status: 'pending' } : img
+    ));
 
-      try {
-        const blob = await fetch(image.originalUrl).then(r => r.blob());
-        const base64 = await fileToBase64(new File([blob], image.name, { type: blob.type }));
-        
-        // 1. Get AI generation
-        const rawProcessedUrl = await processImageWithGemini(base64, blob.type);
-        
-        // 2. Apply branding overlay
-        const brandedUrl = await applyLogoOverlay(rawProcessedUrl);
+    // Concurrency limit to stay within Tier 1 RPM/IPM limits
+    const CONCURRENCY_LIMIT = 3;
+    const queue = [...idleImages];
+    let completedCount = 0;
+
+    const processNext = async () => {
+      while (queue.length > 0) {
+        const image = queue.shift();
+        if (!image) break;
 
         setImages(prev => prev.map(img => 
-          img.id === image.id ? { 
-            ...img, 
-            status: 'completed', 
-            processedUrl: brandedUrl 
-          } : img
+          img.id === image.id ? { ...img, status: 'processing' } : img
         ));
-      } catch (err: any) {
-        setImages(prev => prev.map(img => 
-          img.id === image.id ? { 
-            ...img, 
-            status: 'error', 
-            error: err.message || "Power Failure" 
-          } : img
-        ));
+
+        try {
+          const blob = await fetch(image.originalUrl).then(r => r.blob());
+          const base64 = await fileToBase64(new File([blob], image.name, { type: blob.type }));
+          
+          // 1. Get AI generation
+          const rawProcessedUrl = await processImageWithGemini(base64, blob.type);
+          
+          // 2. Apply branding overlay
+          const brandedUrl = await applyLogoOverlay(rawProcessedUrl);
+
+          setImages(prev => prev.map(img => 
+            img.id === image.id ? { 
+              ...img, 
+              status: 'completed', 
+              processedUrl: brandedUrl 
+            } : img
+          ));
+        } catch (err: any) {
+          setImages(prev => prev.map(img => 
+            img.id === image.id ? { 
+              ...img, 
+              status: 'error', 
+              error: err.message || "Power Failure" 
+            } : img
+          ));
+        } finally {
+          completedCount++;
+          setProgress(prev => ({ ...prev, current: completedCount }));
+        }
       }
-      setProgress(prev => ({ ...prev, current: prev.current + 1 }));
-    }
+    };
 
+    // Launch workers with a slight staggered start to avoid burst limits
+    const workers = Array(Math.min(CONCURRENCY_LIMIT, idleImages.length))
+      .fill(null)
+      .map(async (_, i) => {
+        await new Promise(resolve => setTimeout(resolve, i * 500));
+        return processNext();
+      });
+
+    await Promise.all(workers);
     setIsProcessing(false);
   };
 
@@ -266,7 +292,7 @@ const App: React.FC = () => {
               <div className="flex justify-between font-oswald font-bold text-[#FFCC00] uppercase tracking-widest text-sm mb-3">
                 <div className="flex items-center gap-3">
                   <span className="inline-block w-3 h-3 bg-[#E1002F] animate-ping rounded-full"></span>
-                  Batch Execution in Progress
+                  High-Octane Parallel Execution
                 </div>
                 <span>{progress.current} / {progress.total} Units</span>
               </div>
@@ -278,6 +304,9 @@ const App: React.FC = () => {
                   <div className="absolute top-0 right-0 h-full w-4 bg-[#FFCC00] shadow-[0_0_20px_#FFCC00]"></div>
                 </div>
               </div>
+              <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] mt-4 text-center">
+                Processing 3 streams simultaneously to respect Tier 1 limits
+              </p>
             </div>
           )}
         </div>
